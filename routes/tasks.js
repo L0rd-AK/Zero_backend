@@ -2,11 +2,16 @@ const express = require('express');
 const router = express.Router();
 const Task = require('../models/Task');
 const authMiddleware = require('../middleware/auth');
-
+const { ObjectId } = require('mongodb');
 // Get all tasks for the authenticated user
 router.get('/', authMiddleware, async (req, res) => {
+  const { status } = req.query;
+  let query = { user: req.userId };
+  if (status) {
+    query.status = status;
+  }
   try {
-    const tasks = await Task.find({ user: req.userId });
+    const tasks = await Task.find(query);
     res.json({ tasks });
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
@@ -33,13 +38,25 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // Update a task (mark as completed)
+// Update a task (mark as completed)
 router.put('/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
+  const { status } = req.body;  // Extract status from request body
+  
   try {
-    const task = await Task.findOne({ _id: id, user: req.userId });
+    const task = await Task.findOne({ _id: new ObjectId(id) });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    task.end_time = new Date(); // Set end time to current time
+    // Update status if provided
+    if (status) {
+      task.status = status;
+    }
+    
+    // If marking as completed and end_time is not set
+    if (status === 'completed' && !task.end_time) {
+      task.end_time = new Date();
+    }
+    
     await task.save();
     res.json(task);
   } catch (err) {
